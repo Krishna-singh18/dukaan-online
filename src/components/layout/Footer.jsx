@@ -122,7 +122,15 @@ export function Footer({ onNavigate }) {
             <span className="text-emerald-900">•</span>
             <p className="flex items-center gap-1.5">
               <span>Powered by</span>
-              <span className="font-semibold text-white">DukaanOnline</span>
+              <a
+                href="https://www.linkedin.com/in/krishna-singh18/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-white hover:text-accent transition-colors"
+                title="LinkedIn Profile of Krishna Singh"
+              >
+                Krishna Singh (Kishan baish)
+              </a>
               <span>• Digital Kirana</span>
             </p>
           </div>
