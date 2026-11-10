@@ -284,6 +284,33 @@ export function StoreProvider({ children }) {
       )
       .subscribe();
 
+    // Realtime categories channel
+    const categoriesChannel = supabase
+      .channel('realtime:categories')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        (payload) => {
+          setIsCloudConnected(true);
+          if (payload.eventType === 'INSERT') {
+            const newCat = normalizeCategory(payload.new);
+            setCategories((prev) => {
+              if (prev.some((c) => c.id === newCat.id)) return prev;
+              return [...prev, newCat];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = normalizeCategory(payload.new);
+            setCategories((prev) =>
+              prev.map((c) => (c.id === updated.id ? updated : c))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old.id;
+            setCategories((prev) => prev.filter((c) => c.id !== deletedId));
+          }
+        }
+      )
+      .subscribe();
+
     // Realtime orders channel
     const ordersChannel = supabase
       .channel('realtime:orders')
@@ -308,6 +335,7 @@ export function StoreProvider({ children }) {
     return () => {
       supabase.removeChannel(productChannel);
       supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(categoriesChannel);
       supabase.removeChannel(ordersChannel);
     };
   }, []);
@@ -447,6 +475,80 @@ export function StoreProvider({ children }) {
     }
   };
 
+  // --- CRUD ACTIONS FOR CATEGORIES ---
+  const addCategory = async (newCategory) => {
+    const id = newCategory.id || ('cat-' + Date.now());
+    const catWithId = {
+      id,
+      name: newCategory.name,
+      hindiName: newCategory.hindiName || '',
+      icon: newCategory.icon || '🛍️',
+      image: newCategory.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
+      description: newCategory.description || '',
+      itemCount: '0 Items',
+      display_order: categories.length,
+    };
+
+    setCategories((prev) => [...prev, catWithId]);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('categories').upsert({
+          id: catWithId.id,
+          name: catWithId.name,
+          hindiName: catWithId.hindiName,
+          icon: catWithId.icon,
+          image: catWithId.image,
+          description: catWithId.description,
+          display_order: catWithId.display_order,
+        });
+        if (error) console.error('Supabase addCategory failed:', error);
+      } catch (err) {
+        console.error('Supabase addCategory exception:', err);
+      }
+    }
+    return catWithId;
+  };
+
+  const updateCategory = async (id, updatedFields) => {
+    setCategories((prev) =>
+      prev.map((cat) => (cat.id === id ? { ...cat, ...updatedFields } : cat))
+    );
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const existing = categories.find((c) => c.id === id) || {};
+        const merged = { ...existing, ...updatedFields };
+        const { error } = await supabase.from('categories').upsert({
+          id,
+          name: merged.name,
+          hindiName: merged.hindiName || '',
+          icon: merged.icon || '🛍️',
+          image: merged.image || '',
+          description: merged.description || '',
+          itemCount: merged.itemCount || '',
+          display_order: merged.display_order ?? 0,
+        });
+        if (error) console.error('Supabase updateCategory failed:', error);
+      } catch (err) {
+        console.error('Supabase updateCategory exception:', err);
+      }
+    }
+  };
+
+  const deleteCategory = async (id) => {
+    setCategories((prev) => prev.filter((cat) => cat.id !== id));
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from('categories').delete().eq('id', id);
+        if (error) console.error('Supabase deleteCategory failed:', error);
+      } catch (err) {
+        console.error('Supabase deleteCategory exception:', err);
+      }
+    }
+  };
+
   // --- CRUD ACTIONS FOR OFFERS ---
   const updateOfferSettings = async (updated) => {
     const merged = { ...offerSettings, ...updated };
@@ -569,6 +671,9 @@ export function StoreProvider({ children }) {
     updateProduct,
     deleteProduct,
     categories,
+    addCategory,
+    updateCategory,
+    deleteCategory,
     offerSettings,
     updateOfferSettings,
     aboutSettings,

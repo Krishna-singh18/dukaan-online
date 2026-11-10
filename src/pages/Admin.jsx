@@ -56,6 +56,9 @@ export function Admin({ onNavigate }) {
     updateProduct,
     deleteProduct,
     categories,
+    addCategory,
+    updateCategory,
+    deleteCategory,
     offerSettings,
     updateOfferSettings,
     aboutSettings,
@@ -164,6 +167,19 @@ export function Admin({ onNavigate }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
   const [hasVariants, setHasVariants] = useState(false);
+
+  // 3.1 Edit / Add Category Modal State
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const initialCategoryForm = {
+    id: '',
+    name: '',
+    hindiName: '',
+    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80',
+    icon: '🛒',
+    description: '',
+  };
+  const [categoryForm, setCategoryForm] = useState(initialCategoryForm);
 
   const initialProductForm = {
     name: '',
@@ -445,6 +461,56 @@ export function Admin({ onNavigate }) {
       ...prev,
       variants: prev.variants.filter((_, i) => i !== index)
     }));
+  };
+
+  // Category Modal Handlers
+  const handleOpenAddCategoryModal = () => {
+    setEditingCategoryId(null);
+    setCategoryForm(initialCategoryForm);
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleOpenEditCategoryModal = (cat) => {
+    setEditingCategoryId(cat.id);
+    setCategoryForm({
+      id: cat.id,
+      name: cat.name || '',
+      hindiName: cat.hindiName || '',
+      image: cat.image || '',
+      icon: cat.icon || '🛍️',
+      description: cat.description || '',
+    });
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleSaveCategory = (e) => {
+    e.preventDefault();
+    if (!categoryForm.name.trim()) return;
+
+    if (editingCategoryId) {
+      updateCategory(editingCategoryId, categoryForm);
+      triggerToast(`Category "${categoryForm.name}" updated!`);
+    } else {
+      const generatedId = categoryForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `cat-${Date.now()}`;
+      addCategory({ ...categoryForm, id: generatedId });
+      triggerToast(`New category "${categoryForm.name}" added!`);
+    }
+    setIsCategoryModalOpen(false);
+  };
+
+  const handleDeleteCategory = (cat) => {
+    const productsInCat = products.filter((p) => p.category === cat.id).length;
+    if (productsInCat > 0) {
+      if (!window.confirm(`Notice: ${productsInCat} products belong to "${cat.name}". Are you sure you want to delete this category?`)) {
+        return;
+      }
+    } else {
+      if (!window.confirm(`Are you sure you want to delete category "${cat.name}"?`)) {
+        return;
+      }
+    }
+    deleteCategory(cat.id);
+    triggerToast(`Category "${cat.name}" deleted.`);
   };
 
   // Save Delivery Config
@@ -810,6 +876,18 @@ export function Admin({ onNavigate }) {
           </button>
 
           <button
+            onClick={() => setActiveTab('categories')}
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shrink-0 ${
+              activeTab === 'categories'
+                ? 'bg-primary text-white shadow-xs'
+                : 'bg-surface text-secondaryText hover:text-mainText'
+            }`}
+          >
+            <Layers size={17} />
+            <span>Categories ({categories.length})</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('orders')}
             className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shrink-0 ${
               activeTab === 'orders'
@@ -1010,6 +1088,105 @@ export function Admin({ onNavigate }) {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB 1: CATEGORIES MANAGEMENT */}
+        {/* ============================================================== */}
+        {activeTab === 'categories' && (
+          <div className="space-y-4">
+            
+            {/* Header with Title and Add Button */}
+            <div className="bg-surface p-4 sm:p-5 rounded-2xl border border-gray-100 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-mainText flex items-center gap-2">
+                  <Layers size={18} className="text-primary" />
+                  <span>Category Photos &amp; Names Management</span>
+                </h3>
+                <p className="text-xs text-secondaryText mt-0.5">
+                  Update category photos, English names, Hindi names, and emoji icons shown on the storefront and filter bars.
+                </p>
+              </div>
+
+              <button
+                onClick={handleOpenAddCategoryModal}
+                className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-sm transition-all flex items-center gap-2 shrink-0 active:scale-95"
+              >
+                <Plus size={16} />
+                <span>Add New Category</span>
+              </button>
+            </div>
+
+            {/* Categories Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
+              {categories.map((cat) => {
+                const count = products.filter((p) => p.category === cat.id).length;
+                return (
+                  <div
+                    key={cat.id}
+                    className="bg-surface rounded-2xl border border-gray-100 overflow-hidden shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col"
+                  >
+                    {/* Image Area */}
+                    <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden group">
+                      <img
+                        src={cat.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80'}
+                        alt={cat.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80';
+                        }}
+                      />
+                      {/* Emoji Icon Badge */}
+                      <div className="absolute top-2.5 left-2.5 w-9 h-9 rounded-xl bg-surface/90 backdrop-blur-xs flex items-center justify-center text-lg shadow-sm border border-white/60">
+                        {cat.icon || '🛍️'}
+                      </div>
+                      {/* Products Count Badge */}
+                      <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[10px] text-white font-bold">
+                        {count} {count === 1 ? 'Product' : 'Products'}
+                      </span>
+                    </div>
+
+                    {/* Content Details */}
+                    <div className="p-4 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <h4 className="font-extrabold text-sm text-mainText truncate">
+                            {cat.name}
+                          </h4>
+                          {cat.hindiName && (
+                            <span className="text-xs text-primary font-bold shrink-0">
+                              {cat.hindiName}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-secondaryText line-clamp-2 mt-1 leading-relaxed">
+                          {cat.description || 'No description provided.'}
+                        </p>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="pt-3 mt-3 border-t border-gray-100 flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenEditCategoryModal(cat)}
+                          className="flex-1 py-2 px-3 rounded-xl bg-secondary text-primary font-bold text-xs hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <Edit2 size={13} />
+                          <span>Edit Photo &amp; Name</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="p-2 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                          title="Delete Category"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -2173,6 +2350,209 @@ export function Admin({ onNavigate }) {
                   </button>
                 </div>
 
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================== */}
+        {/* CATEGORY ADD / EDIT MODAL */}
+        {/* ============================================================== */}
+        {isCategoryModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              onClick={() => setIsCategoryModalOpen(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+            />
+
+            <div className="relative bg-surface rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl z-10 border border-gray-100 p-5 sm:p-7 animate-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-secondary text-primary flex items-center justify-center">
+                    <Layers size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-mainText">
+                      {editingCategoryId ? 'Edit Category Photo & Name' : 'Add New Category'}
+                    </h3>
+                    <p className="text-xs text-secondaryText">Update category visuals and details displayed in store</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleSaveCategory} className="space-y-4 text-xs sm:text-sm">
+                {/* Photo Live Preview Box */}
+                <div>
+                  <label className="block text-xs font-bold text-mainText mb-1.5">
+                    Category Photo Preview
+                  </label>
+                  <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-gray-100 border border-gray-200 shadow-inner">
+                    <img
+                      src={categoryForm.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'}
+                      alt="Category Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80';
+                      }}
+                    />
+                    <div className="absolute top-2.5 left-2.5 w-10 h-10 rounded-xl bg-surface/90 backdrop-blur-xs flex items-center justify-center text-xl shadow-md border border-white/60">
+                      {categoryForm.icon || '🛍️'}
+                    </div>
+                    <div className="absolute bottom-2.5 left-2.5 bg-black/60 backdrop-blur-xs text-white px-2.5 py-1 rounded-lg text-xs font-bold">
+                      {categoryForm.name || 'Category Name'} {categoryForm.hindiName ? `(${categoryForm.hindiName})` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Photo URL Input */}
+                <div>
+                  <label className="block text-xs font-bold text-mainText mb-1">
+                    Photo URL (Unsplash or Image Link) *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={categoryForm.image}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, image: e.target.value })}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
+                  />
+
+                  {/* Quick Photo Presets */}
+                  <div className="mt-2">
+                    <span className="text-[11px] font-semibold text-secondaryText block mb-1">
+                      Quick Sample Photos:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: 'Atta & Rice', url: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Dal & Pulses', url: 'https://images.unsplash.com/photo-1596797882870-8c33deeac224?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Oil & Ghee', url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Dairy & Milk', url: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Snacks', url: 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Tea & Coffee', url: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Spices', url: 'https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=400&q=80' },
+                        { label: 'Cleaners', url: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=400&q=80' }
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setCategoryForm({ ...categoryForm, image: preset.url })}
+                          className="text-[10px] bg-gray-100 hover:bg-emerald-50 hover:text-primary px-2 py-1 rounded-md border border-gray-200 transition-colors"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Names: English and Hindi */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-mainText mb-1">
+                      Category Name (English) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={categoryForm.name}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                      placeholder="e.g. Atta & Rice"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-mainText mb-1">
+                      Hindi Name (हिंदी नाम)
+                    </label>
+                    <input
+                      type="text"
+                      value={categoryForm.hindiName}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, hindiName: e.target.value })}
+                      placeholder="e.g. आटा और चावल"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Emoji Icon Picker */}
+                <div>
+                  <label className="block text-xs font-bold text-mainText mb-1 flex items-center justify-between">
+                    <span>Category Emoji Icon *</span>
+                    <span className="text-[11px] text-secondaryText font-normal">Click icon to select</span>
+                  </label>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center text-xl shrink-0">
+                      {categoryForm.icon || '🛍️'}
+                    </span>
+                    <input
+                      type="text"
+                      value={categoryForm.icon}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, icon: e.target.value })}
+                      placeholder="e.g. 🌾"
+                      className="w-full px-3.5 py-2 rounded-xl bg-background border border-gray-200 text-xs"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-1">
+                    {['🌾', '🥣', '🫒', '🥛', '🍪', '☕', '🧼', '🧂', '🍫', '🍎', '🍞', '🛒', '🥤', '🧺', '🧅', '🍬'].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setCategoryForm({ ...categoryForm, icon: emoji })}
+                        className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center border transition-all ${
+                          categoryForm.icon === emoji
+                            ? 'bg-primary text-white border-primary scale-110 shadow-xs'
+                            : 'bg-background hover:bg-gray-100 border-gray-200'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-bold text-mainText mb-1">
+                    Description / Subtitle
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryForm.description}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                    placeholder="e.g. Chakki fresh atta, basmati rice, poha & grains"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-background border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
+                  />
+                </div>
+
+                {/* Modal Actions */}
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-semibold text-xs transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-xs shadow-sm transition-all flex items-center gap-1.5"
+                  >
+                    <Save size={15} />
+                    <span>{editingCategoryId ? 'Save Category Changes' : 'Create Category'}</span>
+                  </button>
+                </div>
               </form>
             </div>
           </div>
